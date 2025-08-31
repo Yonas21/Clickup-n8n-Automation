@@ -1,0 +1,339 @@
+{
+  "name": "ClickUp to Google Drive Backup",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "value": "0 2 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Daily Backup Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.clickup.com/api/v2/team/{{ $env.CLICKUP_TEAM_ID }}/space",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickupApi",
+        "options": {}
+      },
+      "id": "get-spaces",
+      "name": "Get ClickUp Spaces",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "clickupApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all spaces and process them\nconst spaces = $input.all();\nconst results = [];\n\nfor (const space of spaces) {\n  if (space.json && space.json.spaces) {\n    for (const spaceData of space.json.spaces) {\n      results.push({\n        json: {\n          spaceId: spaceData.id,\n          spaceName: spaceData.name,\n          space: spaceData\n        }\n      });\n    }\n  }\n}\n\nreturn results;"
+      },
+      "id": "process-spaces",
+      "name": "Process Spaces",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-spaces",
+      "name": "Split Spaces",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.clickup.com/api/v2/space/{{ $json.spaceId }}/list",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickupApi",
+        "options": {}
+      },
+      "id": "get-lists",
+      "name": "Get Lists in Space",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        300
+      ],
+      "credentials": {
+        "clickupApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get tasks for each list\nconst lists = $input.all();\nconst results = [];\n\nfor (const list of lists) {\n  if (list.json && list.json.lists) {\n    for (const listData of list.json.lists) {\n      results.push({\n        json: {\n          listId: listData.id,\n          listName: listData.name,\n          list: listData,\n          spaceId: $('Split Spaces').item.json.spaceId,\n          spaceName: $('Split Spaces').item.json.spaceName\n        }\n      });\n    }\n  }\n}\n\nreturn results;"
+      },
+      "id": "process-lists",
+      "name": "Process Lists",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-lists",
+      "name": "Split Lists for Tasks",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.clickup.com/api/v2/list/{{ $json.listId }}/task",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickupApi",
+        "options": {
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "include_closed",
+                "value": "true"
+              }
+            ]
+          }
+        }
+      },
+      "id": "get-tasks",
+      "name": "Get Tasks for List",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1780,
+        300
+      ],
+      "credentials": {
+        "clickupApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if all lists are processed\nconst isLastBatch = $('Split Lists for Tasks').context.noItemsLeft;\n\nif (isLastBatch) {\n  // All lists processed, create backup\n  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');\n  const spaceName = $('Split Spaces').item.json.spaceName;\n  const filename = `clickup-backup-${spaceName.replace(/[^a-zA-Z0-9]/g, '_')}-${timestamp}.json`;\n  \n  // Create simple backup data\n  const backupData = {\n    timestamp: new Date().toISOString(),\n    space: $('Split Spaces').item.json.space,\n    backupInfo: {\n      spaceName: spaceName,\n      spaceId: $('Split Spaces').item.json.spaceId,\n      backupDate: new Date().toISOString()\n    }\n  };\n  \n  return {\n    json: {\n      filename: filename,\n      content: JSON.stringify(backupData, null, 2),\n      mimeType: 'application/json'\n    }\n  };\n} else {\n  // Continue processing\n  return [];\n}"
+      },
+      "id": "create-backup",
+      "name": "Create Backup File",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ $json.filename }}",
+        "binaryData": true,
+        "options": {
+          "parents": {
+            "values": [
+              {
+                "parentId": "={{ $env.GOOGLE_DRIVE_FOLDER_ID }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "upload-to-drive",
+      "name": "Upload to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2220,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-credentials",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "✅ ClickUp backup completed successfully!\n\n📊 **Backup Summary:**\n- Space: {{ $('Create Backup File').item.json.filename }}\n- Uploaded to Google Drive: ✅\n\n⏰ **Next backup:** Tomorrow at 2:00 AM",
+        "options": {}
+      },
+      "id": "success-notification",
+      "name": "Success Notification",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2440,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Daily Backup Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get ClickUp Spaces",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get ClickUp Spaces": {
+      "main": [
+        [
+          {
+            "node": "Process Spaces",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Spaces": {
+      "main": [
+        [
+          {
+            "node": "Split Spaces",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Spaces": {
+      "main": [
+        [
+          {
+            "node": "Get Lists in Space",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Lists in Space": {
+      "main": [
+        [
+          {
+            "node": "Process Lists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Lists": {
+      "main": [
+        [
+          {
+            "node": "Split Lists for Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Lists for Tasks": {
+      "main": [
+        [
+          {
+            "node": "Get Tasks for List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Tasks for List": {
+      "main": [
+        [
+          {
+            "node": "Create Backup File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Backup File": {
+      "main": [
+        [
+          {
+            "node": "Upload to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Success Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "backup",
+      "name": "backup"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
