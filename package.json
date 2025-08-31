@@ -1,0 +1,40 @@
+{
+  "name": "clickup-google-drive-backup-agent",
+  "version": "1.0.0",
+  "description": "n8n agent for backing up ClickUp data to Google Drive",
+  "main": "index.js",
+  "scripts": {
+    "start": "n8n start",
+    "dev": "n8n start --tunnel",
+    "backup": "node backup-script.js",
+    "backup-local": "node backup-script-local.js",
+    "backup-word": "node backup-script-word.js",
+    "test-api": "node test-clickup-api.js",
+    "test-components": "node test-backup-components.js",
+    "test-single": "node test-single-space.js",
+    "test-word": "node test-word-backup.js",
+    "install-n8n": "npm install n8n@0.235.0 --save"
+  },
+  "keywords": [
+    "n8n",
+    "clickup",
+    "google-drive",
+    "backup",
+    "automation"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "docx": "^9.5.1",
+    "dotenv": "^16.3.0",
+    "googleapis": "^128.0.0",
+    "n8n": "0.235.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
