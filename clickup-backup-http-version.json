@@ -1,0 +1,232 @@
+{
+  "name": "ClickUp Backup HTTP Version",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "value": "0 2 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Daily Backup Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.clickup.com/api/v2/space/90153332732/folder",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickupApi"
+      },
+      "id": "get-folders",
+      "name": "Get Folders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        200
+      ],
+      "credentials": {
+        "clickupApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.clickup.com/api/v2/space/90153332732/list",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickupApi"
+      },
+      "id": "get-lists",
+      "name": "Get Lists",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        400
+      ],
+      "credentials": {
+        "clickupApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.clickup.com/api/v2/space/90153332732/sprint",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickupApi"
+      },
+      "id": "get-sprints",
+      "name": "Get Sprints",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        600
+      ],
+      "credentials": {
+        "clickupApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the current time for the backup\nconst now = new Date().toISOString();\nconst timestamp = now.replace(/[:.]/g, '-');\n\n// Collect all data from different nodes\nconst folders = $('Get Folders').all();\nconst lists = $('Get Lists').all();\nconst sprints = $('Get Sprints').all();\n\n// Create comprehensive backup data\nconst backupData = {\n  timestamp: now,\n  backupInfo: {\n    totalFolders: folders.length > 0 ? folders[0].json.folders?.length || 0 : 0,\n    totalLists: lists.length > 0 ? lists[0].json.lists?.length || 0 : 0,\n    totalSprints: sprints.length > 0 ? sprints[0].json.sprints?.length || 0 : 0,\n    backupDate: now,\n    spaceId: '90153332732',\n    teamId: '42092860'\n  },\n  folders: folders.length > 0 ? folders[0].json.folders || [] : [],\n  lists: lists.length > 0 ? lists[0].json.lists || [] : [],\n  sprints: sprints.length > 0 ? sprints[0].json.sprints || [] : []\n};\n\n// Create filename\nconst filename = `clickup-backup-${timestamp}.json`;\n\nreturn {\n  json: {\n    filename: filename,\n    content: JSON.stringify(backupData, null, 2),\n    mimeType: 'application/json',\n    backupData: backupData\n  }\n};"
+      },
+      "id": "create-backup",
+      "name": "Create Backup File",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ $json.filename }}",
+        "binaryData": true,
+        "options": {
+          "parents": {
+            "values": [
+              {
+                "parentId": "16ZPNnvvBNMW2X5HceZ8eWmzgIdrrjFeG"
+              }
+            ]
+          }
+        }
+      },
+      "id": "upload-to-drive",
+      "name": "Upload to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        900,
+        400
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-credentials",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "✅ ClickUp backup completed successfully!\n\n📊 **Backup Summary:**\n- Folders: {{ $('Create Backup File').item.json.backupData.backupInfo.totalFolders }}\n- Lists: {{ $('Create Backup File').item.json.backupData.backupInfo.totalLists }}\n- Sprints: {{ $('Create Backup File').item.json.backupData.backupInfo.totalSprints }}\n- File: {{ $('Create Backup File').item.json.filename }}\n- Uploaded to Google Drive: ✅\n\n⏰ **Next backup:** Tomorrow at 2:00 AM",
+        "options": {}
+      },
+      "id": "success-notification",
+      "name": "Success Notification",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Daily Backup Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Folders",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Lists",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Sprints",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Folders": {
+      "main": [
+        [
+          {
+            "node": "Create Backup File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Lists": {
+      "main": [
+        [
+          {
+            "node": "Create Backup File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Sprints": {
+      "main": [
+        [
+          {
+            "node": "Create Backup File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Backup File": {
+      "main": [
+        [
+          {
+            "node": "Upload to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Success Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
