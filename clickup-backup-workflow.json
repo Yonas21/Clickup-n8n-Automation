@@ -1,0 +1,610 @@
+{
+  "name": "ClickUp to Google Drive Backup",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "value": "0 2 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Daily Backup Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.clickup.com/api/v2/team/{{ $env.CLICKUP_TEAM_ID }}/space",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickupApi",
+        "options": {}
+      },
+      "id": "get-spaces",
+      "name": "Get ClickUp Spaces",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "clickupApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.spaces.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-spaces",
+      "name": "Check if Spaces Exist",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-spaces",
+      "name": "Split Spaces",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.clickup.com/api/v2/space/{{ $json.id }}/folder",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickupApi",
+        "options": {}
+      },
+      "id": "get-folders",
+      "name": "Get Folders in Space",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        200
+      ],
+      "credentials": {
+        "clickupApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.clickup.com/api/v2/space/{{ $('Split Spaces').item.json.id }}/list",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickupApi",
+        "options": {}
+      },
+      "id": "get-lists",
+      "name": "Get Lists in Space",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        400
+      ],
+      "credentials": {
+        "clickupApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine folders and lists data\nconst folders = $('Get Folders in Space').all();\nconst lists = $('Get Lists in Space').all();\nconst spaceData = $('Split Spaces').item.json;\n\n// Create backup data structure\nconst backupData = {\n  timestamp: new Date().toISOString(),\n  space: {\n    id: spaceData.id,\n    name: spaceData.name,\n    color: spaceData.color,\n    private: spaceData.private,\n    archived: spaceData.archived,\n    statuses: spaceData.statuses,\n    multiple_assignees: spaceData.multiple_assignees,\n    features: spaceData.features\n  },\n  folders: folders.map(folder => folder.json),\n  lists: lists.map(list => list.json)\n};\n\n// Get tasks for each list\nconst listIds = lists.map(list => list.json.id);\n\nreturn listIds.map(listId => ({\n  json: {\n    listId: listId,\n    backupData: backupData\n  }\n}));"
+      },
+      "id": "prepare-backup-data",
+      "name": "Prepare Backup Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-lists",
+      "name": "Split Lists for Tasks",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.clickup.com/api/v2/list/{{ $json.listId }}/task",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickupApi",
+        "options": {
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "include_closed",
+                "value": "true"
+              },
+              {
+                "name": "subtasks",
+                "value": "true"
+              }
+            ]
+          }
+        }
+      },
+      "id": "get-tasks",
+      "name": "Get Tasks for List",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1780,
+        300
+      ],
+      "credentials": {
+        "clickupApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Add tasks to backup data\nconst currentBackupData = $('Prepare Backup Data').item.json.backupData;\nconst tasks = $('Get Tasks for List').all();\n\n// Update backup data with tasks\ncurrentBackupData.tasks = currentBackupData.tasks || {};\ncurrentBackupData.tasks[$('Split Lists for Tasks').item.json.listId] = tasks.map(task => task.json);\n\nreturn {\n  json: {\n    backupData: currentBackupData,\n    listId: $('Split Lists for Tasks').item.json.listId\n  }\n};"
+      },
+      "id": "add-tasks-to-backup",
+      "name": "Add Tasks to Backup",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $('Split Lists for Tasks').context.noItemsLeft }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-all-lists-processed",
+      "name": "Check All Lists Processed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Finalize backup data and create JSON file\nconst backupData = $('Add Tasks to Backup').item.json.backupData;\nconst timestamp = new Date().toISOString().replace(/[:.]/g, '-');\nconst filename = `clickup-backup-${backupData.space.name.replace(/[^a-zA-Z0-9]/g, '_')}-${timestamp}.json`;\n\n// Convert to JSON string with proper formatting\nconst jsonContent = JSON.stringify(backupData, null, 2);\n\nreturn {\n  json: {\n    filename: filename,\n    content: jsonContent,\n    mimeType: 'application/json',\n    backupData: backupData\n  }\n};"
+      },
+      "id": "create-backup-file",
+      "name": "Create Backup File",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2440,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ $json.filename }}",
+        "binaryData": true,
+        "options": {
+          "parents": {
+            "values": [
+              {
+                "parentId": "={{ $env.GOOGLE_DRIVE_FOLDER_ID }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "upload-to-google-drive",
+      "name": "Upload to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2660,
+        200
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-credentials",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "list",
+        "folderId": "={{ $env.GOOGLE_DRIVE_FOLDER_ID }}",
+        "options": {
+          "query": "name contains 'clickup-backup' and mimeType = 'application/json'",
+          "orderBy": "createdTime desc"
+        }
+      },
+      "id": "list-old-backups",
+      "name": "List Old Backups",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2880,
+        200
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-credentials",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Clean up old backups (keep only last 30 days)\nconst oldBackups = $('List Old Backups').all();\nconst retentionDays = parseInt($env.BACKUP_RETENTION_DAYS) || 30;\nconst cutoffDate = new Date();\ncutoffDate.setDate(cutoffDate.getDate() - retentionDays);\n\nconst filesToDelete = oldBackups\n  .map(backup => backup.json)\n  .filter(file => {\n    const createdTime = new Date(file.createdTime);\n    return createdTime < cutoffDate;\n  })\n  .slice(0, -1); // Keep at least one backup\n\nreturn filesToDelete.map(file => ({\n  json: {\n    fileId: file.id,\n    fileName: file.name,\n    createdTime: file.createdTime\n  }\n}));"
+      },
+      "id": "identify-old-backups",
+      "name": "Identify Old Backups",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3100,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-files-to-delete",
+      "name": "Split Files to Delete",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        3320,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "fileId": "={{ $json.fileId }}"
+      },
+      "id": "delete-old-backup",
+      "name": "Delete Old Backup",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        3540,
+        200
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-credentials",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "✅ ClickUp backup completed successfully!\n\n📊 **Backup Summary:**\n- Space: {{ $('Create Backup File').item.json.backupData.space.name }}\n- Folders: {{ $('Create Backup File').item.json.backupData.folders.length }}\n- Lists: {{ $('Create Backup File').item.json.backupData.lists.length }}\n- Total Tasks: {{ Object.keys($('Create Backup File').item.json.backupData.tasks || {}).reduce((total, listId) => total + ($('Create Backup File').item.json.backupData.tasks[listId] || []).length, 0) }}\n- File: {{ $('Create Backup File').item.json.filename }}\n- Uploaded to Google Drive: ✅\n\n🗑️ **Cleanup:**\n- Old backups cleaned up (retention: {{ $env.BACKUP_RETENTION_DAYS }} days)\n\n⏰ **Next backup:** Tomorrow at 2:00 AM",
+        "options": {}
+      },
+      "id": "send-success-notification",
+      "name": "Send Success Notification",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2880,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "content": "❌ ClickUp backup failed!\n\n**Error Details:**\n{{ $json.error }}\n\n**Time:** {{ new Date().toISOString() }}\n\nPlease check the workflow logs for more details.",
+        "options": {}
+      },
+      "id": "send-error-notification",
+      "name": "Send Error Notification",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        900,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Daily Backup Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get ClickUp Spaces",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get ClickUp Spaces": {
+      "main": [
+        [
+          {
+            "node": "Check if Spaces Exist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Spaces Exist": {
+      "main": [
+        [
+          {
+            "node": "Split Spaces",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Spaces": {
+      "main": [
+        [
+          {
+            "node": "Get Folders in Space",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Lists in Space",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Folders in Space": {
+      "main": [
+        [
+          {
+            "node": "Prepare Backup Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Lists in Space": {
+      "main": [
+        [
+          {
+            "node": "Prepare Backup Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Backup Data": {
+      "main": [
+        [
+          {
+            "node": "Split Lists for Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Lists for Tasks": {
+      "main": [
+        [
+          {
+            "node": "Get Tasks for List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Tasks for List": {
+      "main": [
+        [
+          {
+            "node": "Add Tasks to Backup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Tasks to Backup": {
+      "main": [
+        [
+          {
+            "node": "Check All Lists Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check All Lists Processed": {
+      "main": [
+        [
+          {
+            "node": "Create Backup File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Tasks for List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Backup File": {
+      "main": [
+        [
+          {
+            "node": "Upload to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Google Drive": {
+      "main": [
+        [
+          {
+            "node": "List Old Backups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Old Backups": {
+      "main": [
+        [
+          {
+            "node": "Identify Old Backups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Identify Old Backups": {
+      "main": [
+        [
+          {
+            "node": "Split Files to Delete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Files to Delete": {
+      "main": [
+        [
+          {
+            "node": "Delete Old Backup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Old Backup": {
+      "main": [
+        [
+          {
+            "node": "Send Success Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "backup",
+      "name": "backup"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
