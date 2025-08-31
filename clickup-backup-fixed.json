@@ -1,0 +1,207 @@
+{
+  "name": "ClickUp Backup Fixed",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "value": "0 2 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Daily Backup Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.clickup.com/api/v2/space/90153332732/folder",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickupApi"
+      },
+      "id": "get-folders",
+      "name": "Get Folders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        200
+      ],
+      "credentials": {
+        "clickupApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.clickup.com/api/v2/space/90153332732/list",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickupApi"
+      },
+      "id": "get-lists",
+      "name": "Get Lists",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        400
+      ],
+      "credentials": {
+        "clickupApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.clickup.com/api/v2/space/90153332732/sprint",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickupApi"
+      },
+      "id": "get-sprints",
+      "name": "Get Sprints",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        600
+      ],
+      "credentials": {
+        "clickupApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the current time for the backup\nconst now = new Date().toISOString();\nconst timestamp = now.replace(/[:.]/g, '-');\n\n// Collect all data from different nodes\nconst folders = $('Get Folders').all();\nconst lists = $('Get Lists').all();\nconst sprints = $('Get Sprints').all();\n\n// Create Google Doc content\nconst docContent = `# ClickUp Backup Report\n\n**Backup Date:** ${new Date(now).toLocaleString()}\n**Space ID:** 90153332732\n**Team ID:** 42092860\n\n---\n\n## 📂 Folders (${folders.length > 0 ? folders[0].json.folders?.length || 0 : 0})\n\n${folders.length > 0 && folders[0].json.folders ? folders[0].json.folders.map(folder => `\n### ${folder.name}\n- **ID:** ${folder.id}\n- **Private:** ${folder.private ? 'Yes' : 'No'}\n- **Archived:** ${folder.archived ? 'Yes' : 'No'}\n- **Status:** ${folder.status?.status || 'N/A'}\n- **Order Index:** ${folder.orderindex}\n`).join('\\n') : 'No folders found'}\n\n---\n\n## 📋 Lists (${lists.length > 0 ? lists[0].json.lists?.length || 0 : 0})\n\n${lists.length > 0 && lists[0].json.lists ? lists[0].json.lists.map(list => `\n### ${list.name}\n- **ID:** ${list.id}\n- **Private:** ${list.private ? 'Yes' : 'No'}\n- **Archived:** ${list.archived ? 'Yes' : 'No'}\n- **Status:** ${list.status?.status || 'N/A'}\n- **Order Index:** ${list.orderindex}\n- **Folder ID:** ${list.folder?.id || 'N/A'}\n- **Folder Name:** ${list.folder?.name || 'N/A'}\n`).join('\\n') : 'No lists found'}\n\n---\n\n## 🎯 Sprints (${sprints.length > 0 ? sprints[0].json.sprints?.length || 0 : 0})\n\n${sprints.length > 0 && sprints[0].json.sprints ? sprints[0].json.sprints.map(sprint => `\n### ${sprint.name}\n- **ID:** ${sprint.id}\n- **Status:** ${sprint.status || 'N/A'}\n- **Start Date:** ${sprint.start_date ? new Date(sprint.start_date).toLocaleDateString() : 'N/A'}\n- **End Date:** ${sprint.end_date ? new Date(sprint.end_date).toLocaleDateString() : 'N/A'}\n- **Created:** ${sprint.date_created ? new Date(sprint.date_created).toLocaleDateString() : 'N/A'}\n`).join('\\n') : 'No sprints found'}\n\n---\n\n## 📊 Backup Statistics\n\n- **Total Folders:** ${folders.length > 0 ? folders[0].json.folders?.length || 0 : 0}\n- **Total Lists:** ${lists.length > 0 ? lists[0].json.lists?.length || 0 : 0}\n- **Total Sprints:** ${sprints.length > 0 ? sprints[0].json.sprints?.length || 0 : 0}\n- **Backup Generated:** ${new Date(now).toLocaleString()}\n\n---\n\n*This backup was generated automatically by the ClickUp Backup Agent.*`;\n\n// Create filename\nconst filename = `ClickUp Backup - ${timestamp}`;\n\nreturn {\n  json: {\n    filename: filename,\n    content: docContent,\n    mimeType: 'application/vnd.google-apps.document'\n  }\n};"
+      },
+      "id": "create-doc-content",
+      "name": "Create Doc Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ $json.filename }}",
+        "binaryData": true,
+        "options": {
+          "parents": {
+            "values": [
+              {
+                "parentId": "16ZPNnvvBNMW2X5HceZ8eWmzgIdrrjFeG"
+              }
+            ]
+          }
+        }
+      },
+      "id": "create-google-doc",
+      "name": "Create Google Doc",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        900,
+        400
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-credentials",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily Backup Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Folders",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Lists",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Sprints",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Folders": {
+      "main": [
+        [
+          {
+            "node": "Create Doc Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Lists": {
+      "main": [
+        [
+          {
+            "node": "Create Doc Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Sprints": {
+      "main": [
+        [
+          {
+            "node": "Create Doc Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Doc Content": {
+      "main": [
+        [
+          {
+            "node": "Create Google Doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
