@@ -1,0 +1,276 @@
+{
+  "name": "ClickUp Sprints Backup",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "value": "0 2 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Daily Backup Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.clickup.com/api/v2/team/{{ $env.CLICKUP_TEAM_ID }}/space",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickupApi"
+      },
+      "id": "get-spaces",
+      "name": "Get ClickUp Spaces",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "clickupApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process spaces and get sprints\nconst spaces = $input.all();\nconst results = [];\n\nfor (const space of spaces) {\n  if (space.json && space.json.spaces) {\n    for (const spaceData of space.json.spaces) {\n      results.push({\n        json: {\n          spaceId: spaceData.id,\n          spaceName: spaceData.name,\n          space: spaceData\n        }\n      });\n    }\n  }\n}\n\nreturn results;"
+      },
+      "id": "process-spaces",
+      "name": "Process Spaces",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-spaces",
+      "name": "Split Spaces",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.clickup.com/api/v2/space/{{ $json.spaceId }}/sprint",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickupApi"
+      },
+      "id": "get-sprints",
+      "name": "Get Sprints",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        300
+      ],
+      "credentials": {
+        "clickupApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.clickup.com/api/v2/space/{{ $('Split Spaces').item.json.spaceId }}/list",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickupApi"
+      },
+      "id": "get-lists",
+      "name": "Get Lists",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1120,
+        500
+      ],
+      "credentials": {
+        "clickupApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine sprints and lists data\nconst sprints = $('Get Sprints').all();\nconst lists = $('Get Lists').all();\nconst spaceData = $('Split Spaces').item.json;\n\n// Create comprehensive backup data\nconst backupData = {\n  timestamp: new Date().toISOString(),\n  space: {\n    id: spaceData.spaceId,\n    name: spaceData.spaceName,\n    data: spaceData.space\n  },\n  sprints: sprints.map(sprint => sprint.json),\n  lists: lists.map(list => list.json),\n  backupInfo: {\n    totalSprints: sprints.length,\n    totalLists: lists.length,\n    backupDate: new Date().toISOString()\n  }\n};\n\nconst timestamp = new Date().toISOString().replace(/[:.]/g, '-');\nconst filename = `clickup-sprints-backup-${spaceData.spaceName.replace(/[^a-zA-Z0-9]/g, '_')}-${timestamp}.json`;\n\nreturn {\n  json: {\n    filename: filename,\n    content: JSON.stringify(backupData, null, 2),\n    mimeType: 'application/json'\n  }\n};"
+      },
+      "id": "create-backup",
+      "name": "Create Backup File",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ $json.filename }}",
+        "binaryData": true,
+        "options": {
+          "parents": {
+            "values": [
+              {
+                "parentId": "={{ $env.GOOGLE_DRIVE_FOLDER_ID }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "upload-to-drive",
+      "name": "Upload to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1560,
+        400
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-credentials",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "✅ ClickUp Sprints backup completed successfully!\n\n📊 **Backup Summary:**\n- Space: {{ $('Create Backup File').item.json.filename }}\n- Sprints: {{ $('Create Backup File').item.json.content | fromJson | get('backupInfo.totalSprints') }}\n- Lists: {{ $('Create Backup File').item.json.content | fromJson | get('backupInfo.totalLists') }}\n- Uploaded to Google Drive: ✅\n\n⏰ **Next backup:** Tomorrow at 2:00 AM",
+        "options": {}
+      },
+      "id": "success-notification",
+      "name": "Success Notification",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1780,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Daily Backup Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get ClickUp Spaces",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get ClickUp Spaces": {
+      "main": [
+        [
+          {
+            "node": "Process Spaces",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Spaces": {
+      "main": [
+        [
+          {
+            "node": "Split Spaces",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Spaces": {
+      "main": [
+        [
+          {
+            "node": "Get Sprints",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Lists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Sprints": {
+      "main": [
+        [
+          {
+            "node": "Create Backup File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Lists": {
+      "main": [
+        [
+          {
+            "node": "Create Backup File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Backup File": {
+      "main": [
+        [
+          {
+            "node": "Upload to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Success Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
