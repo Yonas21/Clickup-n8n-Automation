@@ -1,0 +1,133 @@
+{
+  "name": "ClickUp Google Docs Backup",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "value": "0 2 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Daily Backup Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.clickup.com/api/v2/space/90153332732/sprint",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "clickupApi"
+      },
+      "id": "get-sprints",
+      "name": "Get Sprints",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "clickupApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date().toISOString();\nconst timestamp = now.replace(/[:.]/g, '-');\nconst sprints = $input.all();\n\n// Format as Google Doc content\nconst docContent = `# ClickUp Sprints Backup Report\n\n**Backup Date:** ${new Date(now).toLocaleString()}\n**Space ID:** 90153332732\n\n---\n\n## 🎯 Sprints Summary\n\n**Total Sprints:** ${sprints.length > 0 ? sprints[0].json.sprints?.length || 0 : 0}\n\n${sprints.length > 0 && sprints[0].json.sprints ? sprints[0].json.sprints.map(sprint => `\n### ${sprint.name}\n- **ID:** ${sprint.id}\n- **Status:** ${sprint.status || 'N/A'}\n- **Start Date:** ${sprint.start_date ? new Date(sprint.start_date).toLocaleDateString() : 'N/A'}\n- **End Date:** ${sprint.end_date ? new Date(sprint.end_date).toLocaleDateString() : 'N/A'}\n- **Created:** ${sprint.date_created ? new Date(sprint.date_created).toLocaleDateString() : 'N/A'}\n`).join('\\n') : 'No sprints found'}\n\n---\n\n*This backup was generated automatically by the ClickUp Backup Agent.*`;\n\nconst filename = `ClickUp Sprints Backup - ${timestamp}`;\n\nreturn {\n  json: {\n    filename: filename,\n    content: docContent,\n    mimeType: 'application/vnd.google-apps.document'\n  }\n};"
+      },
+      "id": "create-doc-content",
+      "name": "Create Doc Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ $json.filename }}",
+        "binaryData": true,
+        "options": {
+          "parents": {
+            "values": [
+              {
+                "parentId": "16ZPNnvvBNMW2X5HceZ8eWmzgIdrrjFeG"
+              }
+            ]
+          }
+        }
+      },
+      "id": "create-google-doc",
+      "name": "Create Google Doc",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        900,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-credentials",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily Backup Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Sprints",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Sprints": {
+      "main": [
+        [
+          {
+            "node": "Create Doc Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Doc Content": {
+      "main": [
+        [
+          {
+            "node": "Create Google Doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
