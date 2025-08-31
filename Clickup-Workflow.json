@@ -1,0 +1,311 @@
+{
+  "name": "Clickup Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "binaryPropertyName": "=data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        640,
+        -16
+      ],
+      "id": "a4afceba-a58a-4bbf-abb7-9fc4e771154a",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "16ZPNnvvBNMW2X5HceZ8eWmzgIdrrjFeG",
+          "mode": "list",
+          "cachedResultName": "test-automation",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/16ZPNnvvBNMW2X5HceZ8eWmzgIdrrjFeG"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        864,
+        -16
+      ],
+      "id": "ab1e36ff-cb32-4a49-8e13-47ae355bc448",
+      "name": "Upload file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "sWDfhjM62kPG2Zpr",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "team": "42092860",
+        "events": [
+          "taskUpdated"
+        ],
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.clickUpTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -16
+      ],
+      "id": "1bf289dd-4013-4f24-9b6a-57d2aba78ec2",
+      "name": "ClickUp Trigger",
+      "webhookId": "8b41f951-678a-408b-973e-d24b3d83f7fa",
+      "credentials": {
+        "clickUpOAuth2Api": {
+          "id": "NGhxbnxkP2Ju0g9f",
+          "name": "ClickUp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "console.log($input.first().json)\nreturn $input.first().json"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        -16
+      ],
+      "id": "c056db8b-291c-4134-ace4-c75fa3de455c",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "get",
+        "id": "={{ $json.task_id }}"
+      },
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        208,
+        -16
+      ],
+      "id": "1176158f-12fb-45f3-9d2e-8d9207808ba3",
+      "name": "Get a task",
+      "credentials": {
+        "clickUpOAuth2Api": {
+          "id": "NGhxbnxkP2Ju0g9f",
+          "name": "ClickUp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "folder",
+        "operation": "getAll",
+        "team": "42092860",
+        "space": "90153332732",
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        32,
+        176
+      ],
+      "id": "e0b6008b-f866-4665-9857-511252f277b0",
+      "name": "Get many folders",
+      "credentials": {
+        "clickUpOAuth2Api": {
+          "id": "NGhxbnxkP2Ju0g9f",
+          "name": "ClickUp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "folder",
+        "operation": "get",
+        "team": "42092860",
+        "space": "90153332732",
+        "folder": "90158170482"
+      },
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        240,
+        176
+      ],
+      "id": "8c7c1acc-0991-4d03-beb0-79671a669dd1",
+      "name": "Get a folder",
+      "credentials": {
+        "clickUpOAuth2Api": {
+          "id": "NGhxbnxkP2Ju0g9f",
+          "name": "ClickUp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        224,
+        -224
+      ],
+      "id": "937ff63a-3392-4658-8316-fae7478bb14b",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "folder",
+        "operation": "getAll",
+        "team": "42092860",
+        "space": "90153332732",
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        432,
+        -224
+      ],
+      "id": "77a22519-1e3f-4d8a-b6b7-8a5ef5d7fb73",
+      "name": "Get many folders1",
+      "credentials": {
+        "clickUpOAuth2Api": {
+          "id": "NGhxbnxkP2Ju0g9f",
+          "name": "ClickUp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the current time for the next run to remember\nconst now = new Date().toISOString();\n// Get the stored time from the previous run\nconst lastRun = $workflow.lastRunTime;\n\nlet newSprints = [];\n\n// Check if this is the first run\nif (lastRun) {\n  for (const sprint of  $input.first().json.lists) { // Assuming the API returns an array of 'sprints'\n    const sprintCreated = new Date(sprint.start_date);\n    if (sprintCreated > new Date(lastRun)) {\n      newSprints.push(sprint);\n    }\n  }\n} else {\n  // If it's the first run, we don't want to process old sprints, so we do nothing.\n  newSprints = [];\n}\n\n// Save the current time for the next run\n$workflow.lastRunTime = now;\n\n// Pass only the new sprints to the next node\nreturn newSprints.map(sprint => ({ json: sprint }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        -224
+      ],
+      "id": "2b78109a-edd2-47ca-ae15-cea4a10b03b3",
+      "name": "Code1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Upload file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ClickUp Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get a task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a task": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many folders": {
+      "main": [
+        [
+          {
+            "node": "Get a folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get many folders1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many folders1": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "79fe8da9-0857-481a-908f-7f3ec4a0484c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ca4bc407883a8536bedc1c0ee4fe9abeace07bb78bcce03d8cf07bf6ebee9a20"
+  },
+  "id": "TM2pvc5mTsjQl4QO",
+  "tags": []
+}
