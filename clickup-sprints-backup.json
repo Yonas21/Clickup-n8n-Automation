@@ -71,7 +71,7 @@
     },
     {
       "parameters": {
-        "url": "https://api.clickup.com/api/v2/space/{{ $json.spaceId }}/sprint",
+        "url": "https://api.clickup.com/api/v2/space/{{ $json.spaceId }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "clickupApi"
       },
@@ -113,7 +113,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Combine sprints and lists data\nconst sprints = $('Get Sprints').all();\nconst lists = $('Get Lists').all();\nconst spaceData = $('Split Spaces').item.json;\n\n// Create comprehensive backup data\nconst backupData = {\n  timestamp: new Date().toISOString(),\n  space: {\n    id: spaceData.spaceId,\n    name: spaceData.spaceName,\n    data: spaceData.space\n  },\n  sprints: sprints.map(sprint => sprint.json),\n  lists: lists.map(list => list.json),\n  backupInfo: {\n    totalSprints: sprints.length,\n    totalLists: lists.length,\n    backupDate: new Date().toISOString()\n  }\n};\n\nconst timestamp = new Date().toISOString().replace(/[:.]/g, '-');\nconst filename = `clickup-sprints-backup-${spaceData.spaceName.replace(/[^a-zA-Z0-9]/g, '_')}-${timestamp}.json`;\n\nreturn {\n  json: {\n    filename: filename,\n    content: JSON.stringify(backupData, null, 2),\n    mimeType: 'application/json'\n  }\n};"
+        "jsCode": "// Combine sprints and lists data\nconst spaceResponse = $('Get Sprints').item.json;\nconst lists = $('Get Lists').all();\nconst spaceData = $('Split Spaces').item.json;\n\n// Attempt to extract sprints from the spaceResponse.\n// This is an educated guess without direct API docs.\nconst extractedSprints = spaceResponse.features && spaceResponse.features.sprints && spaceResponse.features.sprints.enabled && spaceResponse.features.sprints.sprints ? spaceResponse.features.sprints.sprints : [];\n\n// Create comprehensive backup data\nconst backupData = {\n  timestamp: new Date().toISOString(),\n  space: {\n    id: spaceData.spaceId,\n    name: spaceData.spaceName,\n    data: spaceResponse // Use the full space response here\n  },\n  sprints: extractedSprints,\n  lists: lists.map(list => list.json),\n  backupInfo: {\n    totalSprints: extractedSprints.length,\n    totalLists: lists.length,\n    backupDate: new Date().toISOString()\n  }\n};\n\nconst timestamp = new Date().toISOString().replace(/[:.]/g, '-');\nconst filename = `clickup-sprints-backup-${spaceData.spaceName.replace(/[^a-zA-Z0-9]/g, '_')}-${timestamp}.json`;\n\nreturn {\n  json: {\n    filename: filename,\n    mimeType: 'application/json',\n    totalSprints: extractedSprints.length,\n    totalLists: lists.length\n  },\n  binary: {\n    data: Buffer.from(JSON.stringify(backupData, null, 2), 'utf8')\n  }\n};\n"
       },
       "id": "create-backup",
       "name": "Create Backup File",
@@ -156,7 +156,7 @@
     },
     {
       "parameters": {
-        "content": "✅ ClickUp Sprints backup completed successfully!\n\n📊 **Backup Summary:**\n- Space: {{ $('Create Backup File').item.json.filename }}\n- Sprints: {{ $('Create Backup File').item.json.content | fromJson | get('backupInfo.totalSprints') }}\n- Lists: {{ $('Create Backup File').item.json.content | fromJson | get('backupInfo.totalLists') }}\n- Uploaded to Google Drive: ✅\n\n⏰ **Next backup:** Tomorrow at 2:00 AM",
+        "content": "✅ ClickUp Sprints backup completed successfully!\n\n📊 **Backup Summary:**\n- Space: {{ $('Create Backup File').item.json.filename }}\n- Sprints: {{ $('Create Backup File').item.json.totalSprints }}\n- Lists: {{ $('Create Backup File').item.json.totalLists }}\n- Uploaded to Google Drive: ✅\n\n⏰ **Next backup:** Tomorrow at 2:00 AM",
         "options": {}
       },
       "id": "success-notification",

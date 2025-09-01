@@ -23,7 +23,7 @@
     },
     {
       "parameters": {
-        "url": "https://api.clickup.com/api/v2/space/90153332732/sprint",
+        "url": "https://api.clickup.com/api/v2/space/90153332732",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "clickupApi"
       },
@@ -44,7 +44,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const now = new Date().toISOString();\nconst timestamp = now.replace(/[:.]/g, '-');\nconst sprints = $input.all();\n\n// Format as Google Doc content\nconst docContent = `# ClickUp Sprints Backup Report\n\n**Backup Date:** ${new Date(now).toLocaleString()}\n**Space ID:** 90153332732\n\n---\n\n## 🎯 Sprints Summary\n\n**Total Sprints:** ${sprints.length > 0 ? sprints[0].json.sprints?.length || 0 : 0}\n\n${sprints.length > 0 && sprints[0].json.sprints ? sprints[0].json.sprints.map(sprint => `\n### ${sprint.name}\n- **ID:** ${sprint.id}\n- **Status:** ${sprint.status || 'N/A'}\n- **Start Date:** ${sprint.start_date ? new Date(sprint.start_date).toLocaleDateString() : 'N/A'}\n- **End Date:** ${sprint.end_date ? new Date(sprint.end_date).toLocaleDateString() : 'N/A'}\n- **Created:** ${sprint.date_created ? new Date(sprint.date_created).toLocaleDateString() : 'N/A'}\n`).join('\\n') : 'No sprints found'}\n\n---\n\n*This backup was generated automatically by the ClickUp Backup Agent.*`;\n\nconst filename = `ClickUp Sprints Backup - ${timestamp}`;\n\nreturn {\n  json: {\n    filename: filename,\n    content: docContent,\n    mimeType: 'application/vnd.google-apps.document'\n  }\n};"
+        "jsCode": "const now = new Date().toISOString();\nconst timestamp = now.replace(/[:.]/g, '-');\nconst spaceResponse = $input.item.json; // Get the single space object from Get Sprints\n\n// Attempt to extract sprints from the spaceResponse.\nconst extractedSprints = spaceResponse.features && spaceResponse.features.sprints && spaceResponse.features.sprints.enabled && spaceResponse.features.sprints.sprints ? spaceResponse.features.sprints.sprints : [];\n\n// Format as Google Doc content\nconst docContent = `# ClickUp Sprints Backup Report\\n\\n**Backup Date:** ${new Date(now).toLocaleString()}\\n**Space ID:** 90153332732\\n\\n---\\n\\n## 🎯 Sprints Summary\\n\\n**Total Sprints:** ${extractedSprints.length}\\n\\n${extractedSprints.length > 0 ? extractedSprints.map(sprint => `\\n### ${sprint.name}\\n- **ID:** ${sprint.id}\\n- **Status:** ${sprint.status || 'N/A'}\\n- **Start Date:** ${sprint.start_date ? new Date(sprint.start_date).toLocaleDateString() : 'N/A'}\\n- **End Date:** ${sprint.end_date ? new Date(sprint.end_date).toLocaleDateString() : 'N/A'}\\n- **Created:** ${sprint.date_created ? new Date(sprint.date_created).toLocaleDateString() : 'N/A'}\\n`).join('\\n') : 'No sprints found'}\\n\\n---\\n\\n*This backup was generated automatically by the ClickUp Backup Agent.*`;\n\nconst filename = `ClickUp Sprints Backup - ${timestamp}`;\n\nreturn {\n  json: {\n    filename: filename,\n    mimeType: 'text/plain',\n    totalSprints: extractedSprints.length\n  },\n  binary: {\n    data: Buffer.from(docContent, 'utf8')\n  }\n};\n"
       },
       "id": "create-doc-content",
       "name": "Create Doc Content",
